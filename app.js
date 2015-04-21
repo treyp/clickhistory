@@ -46,6 +46,21 @@ var flairClass = function (seconds) {
     return "flair-press-1";
 };
 
+var saveEntries = function (callback) {
+    pg.connect(process.env.DATABASE_URL, function (err, client, done) {
+        if (err) {
+            console.error('Save DB connection error:', err);
+        }
+        client.query('UPDATE entry_saves SET data = $1 WHERE id = 1;', [JSON.stringify(entries)], function () {
+            client.query('INSERT INTO entry_saves (id, data) SELECT 1, $1 WHERE NOT EXISTS (SELECT 1 FROM entry_saves WHERE id=1);', [JSON.stringify(entries)], function () {
+                if (callback) {
+                    callback();
+                }
+            });
+        });
+    });
+};
+
 var addTime = function (seconds, clicks) {
     entries = entries.slice(0, process.env.MAX_ENTRIES || 1e3).concat({
         seconds: seconds,
@@ -53,6 +68,7 @@ var addTime = function (seconds, clicks) {
         color: flairClass(seconds),
         clicks: clicks
     });
+    saveEntries();
 };
 
 var setupWebSocket = function (websocketUrl) {
@@ -146,20 +162,13 @@ pg.connect(process.env.DATABASE_URL, function (err, client, done) {
     });
 });
 
-var saveEntries = function (code) {
-    pg.connect(process.env.DATABASE_URL, function (err, client, done) {
-        if (err) {
-            console.error('Shutdown DB connection error:', err);
-        }
-        console.log('Shutting down by ' + code + '. Saving data to DB.');
-        client.query('UPDATE entry_saves SET data = $1 WHERE id = 1;', [JSON.stringify(entries)], function () {
-            client.query('INSERT INTO entry_saves (id, data) SELECT 1, $1 WHERE NOT EXISTS (SELECT 1 FROM entry_saves WHERE id=1);', [JSON.stringify(entries)], function () {
-                console.log('Data saved to DB.');
-                process.kill(process.pid, code);
-            });
-        });
+var saveEntriesAndExit = function (code) {
+    console.log('Shutting down by ' + code + '. Saving data to DB.');
+    saveEntries(function() {
+        console.log('Data saved to DB.');
+        process.kill(process.pid, code);
     });
 };
-process.once('SIGTERM', function () { saveEntries('SIGTERM'); });
-process.once('SIGUSR2', function () { saveEntries('SIGUSR2'); });
-process.once('SIGINT', function () { saveEntries('SIGINT'); });
+process.once('SIGTERM', function () { saveEntriesAndExit('SIGTERM'); });
+process.once('SIGUSR2', function () { saveEntriesAndExit('SIGUSR2'); });
+process.once('SIGINT', function () { saveEntriesAndExit('SIGINT'); });
