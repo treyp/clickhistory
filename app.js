@@ -4,6 +4,7 @@ var app = express();
 var request = require('request');
 var WebSocket = require('ws');
 var moment = require('moment');
+var pg = require('pg');
 
 // Middleware and Express settings
 app.disable('x-powered-by'); // Remove Express's HTTP header
@@ -12,8 +13,6 @@ app.disable('x-powered-by'); // Remove Express's HTTP header
 // http://www.senchalabs.org/connect/compress.html
 app.use(require('compression')());
 
-var entries = [];
-
 app.get('/', function (req, res) {
     res.json(entries);
 });
@@ -21,6 +20,8 @@ app.get('/', function (req, res) {
 var server = app.listen(process.env.PORT || 8001, function () {
     console.log('App listening on port %s', server.address().port);
 });
+
+var entries = [];
 
 var buttonURL = 'http://www.reddit.com/r/thebutton';
 
@@ -125,4 +126,30 @@ var findWebSocket = function () {
     });
 };
 
-findWebSocket();
+pg.connect(process.env.DATABASE_URL, function (err, client, done) {
+    client.query('SELECT data FROM entry_saves WHERE id = 1;', function (err, result) {
+        if (err || !result.rows.length) {
+            done(client);
+            findWebSocket();
+        }
+        done();
+        entries = result.rows[0].data;
+        console.log('Found ' + entries.length + ' rows of data.');
+        findWebSocket();
+    });
+});
+
+var saveEntries = function (code) {
+    pg.connect(process.env.DATABASE_URL, function (err, client, done) {
+        console.log('Shutting down by ' + code + '. Saving data to DB.');
+        client.query('UPDATE entry_saves SET data = $1 WHERE id = 1;', [JSON.stringify(entries)], function () {
+            client.query('INSERT INTO entry_saves (id, data) SELECT 1, $1 WHERE NOT EXISTS (SELECT 1 FROM entry_saves WHERE id=1);', [JSON.stringify(entries)], function () {
+                console.log('Data saved to DB.');
+                process.kill(process.pid, code);
+            });
+        });
+    });
+};
+process.once('SIGTERM', function () { saveEntries('SIGTERM'); });
+process.once('SIGUSR2', function () { saveEntries('SIGUSR2'); });
+process.once('SIGINT', function () { saveEntries('SIGINT'); });
