@@ -14,6 +14,8 @@ app.disable('x-powered-by'); // Remove Express's HTTP header
 app.use(require('compression')());
 
 app.get('/', function (req, res) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "X-Requested-With");
     res.json(entries);
 });
 
