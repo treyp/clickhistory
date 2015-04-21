@@ -52,11 +52,9 @@ var saveEntries = function (callback) {
             console.error('Save DB connection error:', err);
         }
         client.query('UPDATE entry_saves SET data = $1 WHERE id = 1;', [JSON.stringify(entries)], function () {
-            client.query('INSERT INTO entry_saves (id, data) SELECT 1, $1 WHERE NOT EXISTS (SELECT 1 FROM entry_saves WHERE id=1);', [JSON.stringify(entries)], function () {
-                if (callback) {
-                    callback();
-                }
-            });
+            if (callback) {
+                callback();
+            }
         });
     });
 };
@@ -151,6 +149,11 @@ pg.connect(process.env.DATABASE_URL, function (err, client, done) {
     client.query('SELECT data FROM entry_saves WHERE id = 1;', function (err, result) {
         if (err || !result.rows.length) {
             err ? console.error('Query error:', err) : console.log('No rows of data found.');
+            if (!result.rows.length) {
+                client.query('INSERT INTO entry_saves (id, data) SELECT 1, $1 WHERE NOT EXISTS (SELECT 1 FROM entry_saves WHERE id=1);', ["[]"], function () {
+                    console.log("Saved empty data to DB.")
+                });
+            }
             done(client);
             findWebSocket();
             return;
