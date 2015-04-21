@@ -128,9 +128,10 @@ var findWebSocket = function () {
 
 pg.connect(process.env.DATABASE_URL, function (err, client, done) {
     client.query('SELECT data FROM entry_saves WHERE id = 1;', function (err, result) {
-        if (err || !result.rows[0]) {
+        if (err || !result.rows.length) {
             done(client);
             findWebSocket();
+            return;
         }
         done();
         entries = result.rows[0].data;
