@@ -129,8 +129,12 @@ var findWebSocket = function () {
 };
 
 pg.connect(process.env.DATABASE_URL, function (err, client, done) {
+    if (err) {
+        console.error('Statup DB connection error:', err);
+    }
     client.query('SELECT data FROM entry_saves WHERE id = 1;', function (err, result) {
         if (err || !result.rows.length) {
+            err ? console.error('Query error:', err) : console.log('No rows of data found.');
             done(client);
             findWebSocket();
             return;
@@ -144,6 +148,9 @@ pg.connect(process.env.DATABASE_URL, function (err, client, done) {
 
 var saveEntries = function (code) {
     pg.connect(process.env.DATABASE_URL, function (err, client, done) {
+        if (err) {
+            console.error('Shutdown DB connection error:', err);
+        }
         console.log('Shutting down by ' + code + '. Saving data to DB.');
         client.query('UPDATE entry_saves SET data = $1 WHERE id = 1;', [JSON.stringify(entries)], function () {
             client.query('INSERT INTO entry_saves (id, data) SELECT 1, $1 WHERE NOT EXISTS (SELECT 1 FROM entry_saves WHERE id=1);', [JSON.stringify(entries)], function () {
