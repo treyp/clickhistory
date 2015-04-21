@@ -47,7 +47,7 @@ var flairClass = function (seconds) {
 };
 
 var addTime = function (seconds, clicks) {
-    entries = entries.slice(0, process.env.maxEntries || 1e3).concat({
+    entries = entries.slice(0, process.env.MAX_ENTRIES || 1e3).concat({
         seconds: seconds,
         time: moment().valueOf(),
         color: flairClass(seconds),
