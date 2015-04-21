@@ -18,7 +18,7 @@ app.get('/', function (req, res) {
     res.json(entries);
 });
 
-var server = app.listen(8001, function () {
+var server = app.listen(process.env.PORT || 8001, function () {
     console.log('App listening on port %s', server.address().port);
 });
 
