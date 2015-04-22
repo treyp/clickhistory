@@ -13,9 +13,11 @@ app.disable('x-powered-by'); // Remove Express's HTTP header
 // http://www.senchalabs.org/connect/compress.html
 app.use(require('compression')());
 
+var entries = [];
+
 app.get('/', function (req, res) {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "X-Requested-With");
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'X-Requested-With');
     res.json(entries);
 });
 
@@ -23,39 +25,42 @@ var server = app.listen(process.env.PORT || 8001, function () {
     console.log('App listening on port %s', server.address().port);
 });
 
-var entries = [];
-
 var buttonURL = 'http://www.reddit.com/r/thebutton';
 
 var flairClass = function (seconds) {
     if (seconds > 51) {
-        return "flair-press-6";
+        return 'flair-press-6';
     }
     if (seconds > 41) {
-        return "flair-press-5";
+        return 'flair-press-5';
     }
     if (seconds > 31) {
-        return "flair-press-4";
+        return 'flair-press-4';
     }
     if (seconds > 21) {
-        return "flair-press-3";
+        return 'flair-press-3';
     }
     if (seconds > 11) {
-        return "flair-press-2";
+        return 'flair-press-2';
     }
-    return "flair-press-1";
+    return 'flair-press-1';
 };
 
 var saveEntries = function (callback) {
-    pg.connect(process.env.DATABASE_URL, function (err, client, done) {
+    pg.connect(process.env.DATABASE_URL, function (err, client) {
         if (err) {
             console.error('Save DB connection error:', err);
         }
-        client.query('UPDATE entry_saves SET data = $1 WHERE id = 1;', [JSON.stringify(entries)], function () {
-            if (callback) {
-                callback();
+        client.query(
+            'UPDATE entry_saves SET data = $1 WHERE id = 1;',
+            [JSON.stringify(entries)],
+            function () {
+                console.log('Saved ' + entries.length + ' entries to DB.');
+                if (callback) {
+                    callback();
+                }
             }
-        });
+        );
     });
 };
 
@@ -81,6 +86,8 @@ var setupWebSocket = function (websocketUrl) {
         setTimeout(findWebSocket, 0);
     });
     socket.on('message', function (data) {
+        /* jshint camelcase: false */
+        // disabling camelcase since reddit uses underscore style here
         /*
         sample tick data:
         {
@@ -94,13 +101,13 @@ var setupWebSocket = function (websocketUrl) {
         }
         */
         var packet = JSON.parse(data);
-        if (packet.type !== "ticking") {
+        if (packet.type !== 'ticking') {
             return;
         }
         var tick = packet.payload;
 
         currentParticipants = parseInt(
-            tick.participants_text.replace(/,/g, ""),
+            tick.participants_text.replace(/,/g, ''),
             10
         );
 
@@ -130,13 +137,14 @@ var findWebSocket = function () {
             console.log('Reddit server error. Trying again in five seconds.');
             setTimeout(findWebSocket, 5e3);
         }
-        var regex = /"(wss:\/\/[^"]+)/g;
-        var matches = regex.exec(body);
+        var websocketUrlRegex = /"(wss:\/\/[^"]+)/g;
+        var matches = websocketUrlRegex.exec(body);
         if (matches && matches[1]) {
             console.log('WebSocket URL found: ', matches[1]);
             setupWebSocket(matches[1]);
         } else {
-            console.log('No WebSocket URL found in Reddit response. Trying again in five seconds.');
+            console.log('No WebSocket URL found in Reddit response. ' +
+                'Trying again in five seconds.');
             setTimeout(findWebSocket, 5e3);
         }
     });
@@ -146,27 +154,41 @@ pg.connect(process.env.DATABASE_URL, function (err, client, done) {
     if (err) {
         console.error('Statup DB connection error:', err);
     }
-    client.query('SELECT data FROM entry_saves WHERE id = 1;', function (err, result) {
-        if (err || !result.rows.length) {
-            err ? console.error('Query error:', err) : console.log('No rows of data found.');
-            if (!result.rows.length) {
-                client.query('INSERT INTO entry_saves (id, data) SELECT 1, $1 WHERE NOT EXISTS (SELECT 1 FROM entry_saves WHERE id=1);', ["[]"], function () {
-                    console.log("Saved empty data to DB.")
-                });
+    client.query(
+        'SELECT data FROM entry_saves WHERE id = 1;',
+        function (err, result) {
+            if (err || !result.rows.length) {
+                if (err) {
+                    console.error('Query error:', err);
+                } else {
+                    console.log('No rows of data found.');
+                }
+                if (!result.rows.length) {
+                    client.query(
+                        'INSERT INTO entry_saves (id, data) SELECT 1, $1 ' +
+                        'WHERE NOT EXISTS ' +
+                        '(SELECT 1 FROM entry_saves WHERE id=1);',
+                        ['[]'],
+                        function () {
+                            console.log('Saved empty data to DB.');
+                        }
+                    );
+                }
+                done(client);
+                findWebSocket();
+                return;
             }
-            done(client);
+            done();
+            entries = result.rows[0].data;
+            console.log('Found ' + entries.length + ' rows of data.');
             findWebSocket();
-            return;
         }
-        done();
-        entries = result.rows[0].data;
-        console.log('Found ' + entries.length + ' rows of data.');
-        findWebSocket();
-    });
+    );
 });
 
 var saveEntriesAndExit = function (code) {
-    console.log('Shutting down by ' + code + '. Saving data to DB.');
+    console.log('Shutting down by ' + code + '. Saving ' +
+        entries.length + ' rows to DB.');
     saveEntries(function() {
         console.log('Data saved to DB.');
         process.kill(process.pid, code);
