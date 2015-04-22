@@ -47,8 +47,6 @@ var flairClass = function (seconds) {
 };
 
 var saveEntries = function (callback) {
-    console.log('Preparing to save ' + entries.length +
-        ' entries using the following pools...', Object.keys(pg.pools.all));
     pg.connect(process.env.DATABASE_URL, function (err, client, done) {
         if (err) {
             console.error('Save DB connection error:', err);
@@ -57,7 +55,6 @@ var saveEntries = function (callback) {
             }
             return;
         }
-        console.log('Saving ' + entries.length + ' entries to DB...');
         client.query(
             'UPDATE entry_saves SET data = $1 WHERE id = 1;',
             [JSON.stringify(entries)],
