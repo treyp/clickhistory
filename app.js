@@ -55,6 +55,7 @@ var saveEntries = function (callback) {
             }
             return;
         }
+        console.log('Saving ' + entries.length + ' to DB...');
         client.query(
             'UPDATE entry_saves SET data = $1 WHERE id = 1;',
             [JSON.stringify(entries)],
