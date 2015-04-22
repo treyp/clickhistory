@@ -62,6 +62,7 @@ var saveEntries = function (callback) {
             'UPDATE entry_saves SET data = $1 WHERE id = 1;',
             [JSON.stringify(entries)],
             function (err) {
+                done();
                 if (err) {
                     console.error('Error saving entries to DB.', err);
                 } else {
