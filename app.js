@@ -47,17 +47,25 @@ var flairClass = function (seconds) {
 };
 
 var saveEntries = function (callback) {
-    pg.connect(process.env.DATABASE_URL, function (err, client) {
+    pg.connect(process.env.DATABASE_URL, function (err, client, done) {
         if (err) {
             console.error('Save DB connection error:', err);
+            if (callback) {
+                callback(err);
+            }
+            return;
         }
         client.query(
             'UPDATE entry_saves SET data = $1 WHERE id = 1;',
             [JSON.stringify(entries)],
-            function () {
-                console.log('Saved ' + entries.length + ' entries to DB.');
+            function (err) {
+                if (err) {
+                    console.error('Error saving entries to DB.', err);
+                } else {
+                    console.log('Saved ' + entries.length + ' entries to DB.');
+                }
                 if (callback) {
-                    callback();
+                    callback(err);
                 }
             }
         );
@@ -153,6 +161,8 @@ var findWebSocket = function () {
 pg.connect(process.env.DATABASE_URL, function (err, client, done) {
     if (err) {
         console.error('Statup DB connection error:', err);
+        process.kill(process.pid, 'SIGTERM');
+        return;
     }
     client.query(
         'SELECT data FROM entry_saves WHERE id = 1;',
@@ -186,11 +196,19 @@ pg.connect(process.env.DATABASE_URL, function (err, client, done) {
     );
 });
 
+pg.on('error', function () {
+    console.error('DB connection terminated!');
+});
+
 var saveEntriesAndExit = function (code) {
     console.log('Shutting down by ' + code + '. Saving ' +
         entries.length + ' rows to DB.');
-    saveEntries(function() {
-        console.log('Data saved to DB.');
+    saveEntries(function(err) {
+        if (err) {
+            console.error('Error saving on shutdown:', err);
+        } else {
+            console.log('Data saved to DB.');
+        }
         process.kill(process.pid, code);
     });
 };
