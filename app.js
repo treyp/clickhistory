@@ -73,7 +73,7 @@ var saveEntries = function (callback) {
 };
 
 var addTime = function (seconds, clicks) {
-    entries = entries.slice(-1 * process.env.MAX_ENTRIES || -1e3).concat({
+    entries = entries.slice((-1 * process.env.MAX_ENTRIES || -1e3) - 1).concat({
         seconds: seconds,
         time: moment().valueOf(),
         color: flairClass(seconds),
